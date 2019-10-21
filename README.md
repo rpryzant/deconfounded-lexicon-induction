@@ -40,7 +40,7 @@ The module exposes two functions: `score_vocab` and `evaluate_vocab`.
 **Returns**
 A mapping: outcome variable name => outcome variable class => a list of tuples containing vocab elements and their score (i.e. how important each feature is for that level of the outcome).
 
-For example:
+**Example**:
 ```
 scores = score_vocab(
   text=[
