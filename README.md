@@ -48,11 +48,11 @@ scores = score_vocab(
     ["this", "is", "test", "2"]],
   vocab=["this", "is", "this is"],
   confound_data=[
-    ["1", "1"],
+    ["a", "b"],
     [0.1, 0.6]],
   outcome_data=[
-    [0.5, 0.8],
-    ["A", "B"]],
+    ["A", "B"],
+    [0.5, 0.8]],
   confound_names=["C1", "C2"],
   outcome_names=["O1", "O2"]
 )
@@ -60,7 +60,7 @@ scores = score_vocab(
 # Now scores will look something like the following:
 scores = {
   "O1": {
-    "1": [
+    "A": [
       ("this", -0.1),
       ("is", 0.0),
       ("this is", 1.0)
