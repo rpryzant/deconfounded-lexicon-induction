@@ -1,4 +1,4 @@
-# Causal selection 1.0
+# Causal selection 
 
 A Python module that implements the Directed Residualization algorithms from 
 1. _Deconfounded Lexicon Induction for Interpretable Social Science_ [(Pryzant, et al. 2019)](https://nlp.stanford.edu/pubs/pryzant2018lexicon.pdf)
@@ -10,7 +10,7 @@ Given some text, ngram features, outcomes, and confounds, the algorithm scores e
 ## Install
 
 ```
-$ pip install causal_selection
+$ pip3 install causal-selection
 ```
 
 ## Test
