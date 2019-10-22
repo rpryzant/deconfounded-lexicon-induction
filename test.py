@@ -82,14 +82,13 @@ for i, l in enumerate(data_reader):
 	y3_continuous += new_y3_continuous
 	y4_continuous += new_y4_continuous
 
-	if i > 1000: break
+	if i > 10000: break
 
 vocab = build_vocab(text)
-# vocab = ['basic level']
-# vocab = vocab[-1000:]
+
 scores = selection.score_vocab(
 	text=text,
-	vocab=vocab,
+	vocab=vocab[:10],
 	confound_data=[c1_categorical, c2_categorical, c3_continuous, c4_continuous],
  	outcome_data=[y1_categorical, y2_categorical, y3_continuous, y4_continuous],
  	confound_names=['subject', 'final', 'start', 'end'],
@@ -97,45 +96,17 @@ scores = selection.score_vocab(
  	batch_size=2,
  	train_steps=500)
 
-# for outcome_name, outcome_levels in scores.items():
-# 	for level_name, feature_scores in outcome_levels.items():
-# 		# print(outcome_name)
-# 		# print(level_name)
-# 		lexicon = feature_scores[:100]
 
-# TODO test out lexicon you picked :) 
-print(selection.evaluate_vocab(
+full_vocab_score = selection.evaluate_vocab(
 	text=text,
-	vocab=vocab,# [x[0] for x in lexicon],
-	confound_data=[c1_categorical],#, c2_categorical, c3_continuous, c4_continuous],
- 	outcome_data=y1_categorical))
+	vocab=vocab,
+	confound_data=[c2_categorical, c3_continuous],
+ 	outcome_data=y1_categorical)
 
-import random
-print(selection.evaluate_vocab(
+partial_vocab_score = selection.evaluate_vocab(
 	text=text,
-	vocab=random.sample(vocab, 50),
-	confound_data=[c1_categorical],#, c2_categorical, c3_continuous, c4_continuous],
- 	outcome_data=y1_categorical))
+	vocab=vocab[-50:],
+	confound_data=[c2_categorical, c3_continuous],
+ 	outcome_data=y1_categorical)
 
-
-# print( selection.score_lexicon(
-# 	text=text,
-#  	lexicon=vocab, #[x[0] for x in lexicon],
-#  	confound_data=[c1_categorical, c2_categorical, c3_continuous, c4_continuous],
-#  	outcome_data=y4_continuous))
-
-
-# TODO -- eval and lexicon extraction!
-# also clean up of course
-# And documentation
-
-
-
-
-
-
-
-
-
-
-
+assert full_vocab_score > partial_vocab_score
