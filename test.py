@@ -1,5 +1,5 @@
 import causal_selection as selection
-
+import random
 
 
 import nltk
@@ -11,102 +11,75 @@ def build_vocab(text, n=1000):
 	return [w for w, _ in c.most_common(n)]
 
 
-
-
-data_reader = open('testdata/courses.tsv')
-
-
+print('Reading data...')
+data_reader = open('testdata/cfpb.tsv')
 text = []
-
-c1_categorical = []
-c2_categorical = []
-c3_continuous = []
-c4_continuous = []
-y1_categorical = []
-y2_categorical = []
-y3_continuous = []
-y4_continuous = []
-
+products = []
+issues = []
+states = []
+responses = []
+times = []
+rand0s = []
+rand1s = []
 for i, l in enumerate(data_reader):
 	parts = l.strip().split('\t')
 	[
-		description,
-		title,
-		subject,
-		course_number,
-		course_level,
-		num_reqs,
-		repeatable,
-		grading, 
-		units_min,
-		units_max,
-		level,
-		final,
-		course_id,
-		section_id,
-		term,
-		component,
-		num_enrolled,
-		max_enrolled,
-		num_waitlist,
-		max_waitlist,
-		add_consent,
-		drop_consent,
-		start_time,
-		end_time,
-		location,
-		days,
-		instructors
+		complaint, product,	issue,
+		state, response, timely,
+		rand0, rand1
 	] = parts
 
-	try:
-		new_text = [nltk.word_tokenize(description.lower())]
-		new_c1_categorical = [subject]
-		new_c2_categorical = [final]
-		new_c3_continuous = [float(start_time)]
-		new_c4_continuous = [float(end_time)]
-		new_y1_categorical = [days]
-		new_y2_categorical = [term.split()[-1]]
-		new_y3_continuous = [float(num_enrolled)]
-		new_y4_continuous = [float(end_time)]
-	except:
-		continue
+	text += [nltk.word_tokenize(complaint.lower())]
+	products += [product]
+	issues += [issue]
+	states += [state]
+	responses += [response]
+	times += [timely]
+	rand0s += [float(rand0)]
+	rand1s += [float(rand1)]
 
-	text += new_text
-	c1_categorical += new_c1_categorical
-	c2_categorical += new_c2_categorical
-	c3_continuous += new_c3_continuous
-	c4_continuous += new_c4_continuous
-	y1_categorical += new_y1_categorical
-	y2_categorical += new_y2_categorical
-	y3_continuous += new_y3_continuous
-	y4_continuous += new_y4_continuous
+	if i > 40000:
+		break
 
-	if i > 10000: break
 
+# Use a variety of variables (categorical and continuous) 
+#  to score a vocab.
+print('Scoring vocab...')
 vocab = build_vocab(text)
-
 scores = selection.score_vocab(
 	text=text,
 	vocab=vocab[:10],
-	confound_data=[c1_categorical, c2_categorical, c3_continuous, c4_continuous],
- 	outcome_data=[y1_categorical, y2_categorical, y3_continuous, y4_continuous],
- 	confound_names=['subject', 'final', 'start', 'end'],
- 	outcome_names=['instructors', 'term', 'enrolled', 'end'],
+	confound_data=[issues, states, rand0s],
+ 	outcome_data=[responses, rand1s],
+ 	confound_names=['issues', 'states', 'rand0s'],
+ 	outcome_names=['responses', 'rand1s'],
  	batch_size=2,
  	train_steps=500)
 
 
+print('Evaluating vocab...')
+# Now evaluate 2 vocabs, and ensure that the larger
+#  vocab is more informative.
 full_vocab_score = selection.evaluate_vocab(
 	text=text,
 	vocab=vocab,
-	confound_data=[c2_categorical, c3_continuous],
- 	outcome_data=y1_categorical)
+	confound_data=[issues, rand0s],
+ 	outcome_data=responses)
 
 partial_vocab_score = selection.evaluate_vocab(
 	text=text,
 	vocab=vocab[-50:],
-	confound_data=[c2_categorical, c3_continuous],
- 	outcome_data=y1_categorical)
+	confound_data=[issues, rand0s],
+ 	outcome_data=responses)
 
 assert full_vocab_score > partial_vocab_score
+
+# And just for good measure make sure vocab evaluation
+#  doesn't crash on continuous outcomes.
+selection.evaluate_vocab(
+	text=text,
+	vocab=vocab[-50:],
+	confound_data=[issues, rand0s],
+ 	outcome_data=rand1s)
+
+print('Tests passed!')

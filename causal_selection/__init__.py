@@ -508,7 +508,6 @@ def evaluate_vocab(text, vocab, confound_data, outcome_data, max_seq_len=128):
         metric = 'neg_log_loss'
 
     XC = np.concatenate((X, C), axis=-1)
-
     C_error = -cross_val_score(model, C, Y, scoring=metric, cv=5).mean()
     XC_error = -cross_val_score(model, XC, Y, scoring=metric, cv=5).mean()
 
