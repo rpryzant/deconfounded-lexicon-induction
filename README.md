@@ -70,7 +70,15 @@ scores = {
 ```
 
 
-#### `evaluate_vocab`
+#### `evaluate_vocab(text, vocab, confound_data, outcome_data)`
 
+**Arguments**
+These arguments are all the same as `score_vocab()`. 
+
+**Returns**
+The _informativeness coefficient_ of the vocab, which measures the strength of the text's causal effects that can be attributed to the vocab. 
 
 ## Tips
+
+* For a continuous variable X, give the algorithm _log(X)_ instead of just X.
+* The algorithm is sensitive to hyperparameter settings (number of training steps, hidden dimension, etc). Try several different settings to get the best scores possible.
