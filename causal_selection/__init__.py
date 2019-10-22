@@ -1,10 +1,13 @@
 """
-Given text (T), vocab (V), outcome(s) Y, and confound(s) (C),
-    this package will score each element of the vocab according
-    to how well it explains each Y, controlling for all of the C's.
+This package has two interfaces:
 
-There is also an interface for measuring how good a vocab is at 
-    explaining Y, regaurdless of one or more C's.
+(1) score_vocab(): Given text (T), vocab (V), outcome(s) Y, and 
+    confound(s) (C), this method will score each element of the
+    vocab according to how well it explains each Y, controlling 
+    for all of the C's.
+
+(2) evaluate_vocab(): Measure's the strength of a vocab's causal
+    effects on Y (controlling for C).
 
 (c) Reid Pryzant 2019 https://cs.stanford.edu/~rpryzant/
 May be used and distributed under the MIT license.
@@ -13,7 +16,7 @@ May be used and distributed under the MIT license.
 # https://packaging.python.org/tutorials/packaging-projects/
 
 __all__ = ['score_vocab', 'evaluate_vocab']
-__version__ = 1.0
+__version__ = 1.12
 
 from collections import defaultdict
 from tqdm import tqdm
