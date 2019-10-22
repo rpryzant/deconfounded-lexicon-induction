@@ -25,7 +25,7 @@ No output means the test passed.
 ## Use
 The module exposes two functions: `score_vocab` and `evaluate_vocab`.
 
-#### `score_vocab(text, vocab, confound_data, outcome_data, confound_names, outcome_names)`
+#### `score_vocab(text, vocab, confound_data, outcome_data, confound_names=[], outcome_names=[])`
 
 **Arguments**
 * **text**: list(list(str)). Input text that's **already been tokenized**
