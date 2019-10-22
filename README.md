@@ -10,7 +10,7 @@ Given some text, ngram features, outcomes, and confounds, the algorithm scores e
 ## Install
 
 ```
-$ pip install causal_selection
+$ pip3 install causal-selection
 ```
 
 ## Test
