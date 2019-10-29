@@ -16,11 +16,12 @@ May be used and distributed under the MIT license.
 # https://packaging.python.org/tutorials/packaging-projects/
 
 __all__ = ['score_vocab', 'evaluate_vocab']
-__version__ = 1.12
+__version__ = 1.13
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from tqdm import tqdm
 
+import pandas as pd
 import numpy as np
 import scipy
 
@@ -77,14 +78,16 @@ class DirectedResidualization(nn.Module):
         self.hidden_size = hidden_size
         self.use_counts = use_counts
 
-        self.input_info = var_info['input']
+        self.input_info = next(
+            (v for v in var_info.values() if v['type'] == 'input'))
         self.confound_info = {k: v for k, v in var_info.items() if v['control']}
         self.outcome_info = {
-            k: v for k, v in var_info.items() if not v['control'] and k != 'input'
+            k: v for k, v in var_info.items() if not v['control'] and v['type'] != 'input'
         }
 
         # Text => T
-        self.W_in = nn.Linear(len(var_info['input']['vocab']), self.hidden_size, bias=False)
+        self.W_in = nn.Linear(
+            len(self.input_info['vocab']), self.hidden_size, bias=False)
 
         # C => y_hat
         self.confound_predictors, self.confound_losses = self.build_predictors(
@@ -95,7 +98,8 @@ class DirectedResidualization(nn.Module):
 
         # [T, y_hat] => y_hat_final
         self.final_predictors, self.final_losses = self.build_predictors(
-            self.hidden_size + sum([len(info['vocab']) for info in self.outcome_info.values()]),
+            self.hidden_size + sum(
+                [len(info['vocab']) for info in self.outcome_info.values()]),
             self.outcome_info,
             self.hidden_size,
             num_layers=1)
@@ -148,7 +152,9 @@ class DirectedResidualization(nn.Module):
         """
         # text => T
         text_bow = make_bow_vector(
-            batch['input'], len(self.input_info['vocab']), self.use_counts)
+            batch[self.input_info['name']], 
+            len(self.input_info['vocab']), 
+            self.use_counts)
         text_encoded = self.W_in(text_bow)
 
         # C => y_hat
@@ -270,12 +276,11 @@ def make_bow_vector(ids, vocab_size, use_counts=False):
     return vec
 
 
-def build_info(examples, control=False, vocab=None, max_seq_len=256):
+def get_info(examples, vocab=None, max_seq_len=256):
     """Gathers info on and creats a featurized example generator for a list of raw examples.
 
     Args:
         examples: list(list, float, or string). Examples to create generator for.
-        control: bool. Whether we want to control for these data or not.
         vocab: list(str). A vocabulary for discrete datatypes (e.g. text or categorical).
         max_seq_len: int. maximum sequence length for text examples.
 
@@ -288,13 +293,13 @@ def build_info(examples, control=False, vocab=None, max_seq_len=256):
     # Text
     if isinstance(examples[0], list):
         assert vocab is not None, 'ERROR: must provide a vocab.'
-        example_type = 'text'
+        example_type = 'input'
         vocab = ['UNK', 'PAD'] + vocab
         tok2id = {tok: i for i, tok in enumerate(vocab)}
         ngrams = max(len(x.split()) for x in vocab)
         unk_id = 0
 
-        def featurize(example):
+        def featurizer(example):
             ids = []
             for n in range(1, ngrams + 1):
                 toks = [' '.join(example[i: i + n]) for i in range(len(example) - n + 1)]
@@ -308,7 +313,7 @@ def build_info(examples, control=False, vocab=None, max_seq_len=256):
     elif isinstance(examples[0], float):
         example_type = 'continuous'
         vocab = ['N/A']
-        featurize = lambda ex: ex
+        featurizer = lambda ex: ex
 
     # Categorical
     elif isinstance(examples[0], str):
@@ -316,35 +321,23 @@ def build_info(examples, control=False, vocab=None, max_seq_len=256):
         if not vocab:
             vocab = ['UNK'] + sorted(list(set(examples)))
         tok2id = {tok: i for i, tok in enumerate(vocab)}
-        featurize = lambda ex: tok2id.get(ex, 0)  # 0 is the unk id.
+        featurizer = lambda ex: tok2id.get(ex, 0)  # 0 is the unk id.
 
     else: 
         print("ERROR: unrecognized example type: ", examples[0])
         quit()
 
-    def generator():
-        for ex in examples:
-            yield featurize(ex)
-
-    return {
-        'generator': generator(), 
-        'control': control,
-        'type': example_type, 
-        'vocab': vocab,
-    }
+    return featurizer, example_type, vocab
 
 
-def get_iterator(text, vocab, confound_data, outcome_data, confound_names=[],
-        outcome_names=[], batch_size=32, max_seq_len=256):
+def get_iterator(vocab, df, name_to_type, batch_size=32, max_seq_len=256):
     """Builds a data iterator for text, confounds, and outcomes.
-
     Args:
-        text: list(list(str)). Tokenized text.
-        vocab: list(str). A vocabulary over the text.
-        counfound_data: list(list(str or float)). Data for one or more confounds.
-        outcome_data: list(list(str or float)). Data for one or more outcomes.
-        confound_names: list(str). Names for each confound variable.
-        outcome_names: list(str). Names for each outcome variable.
+        vocab: list(str). The vocabulary to use.
+        df: pandas.df. The data we want to iterate over. The columns of
+            these data should be a superset of the keys in name_to_type.
+        name_to_type: dict. A mapping from variable names to whether they are
+            "input", "predict", or "control" variables.
         batch_size: int. The batch size to use.
         max_seq_len: int. Maximum length of text sequences.
 
@@ -352,34 +345,36 @@ def get_iterator(text, vocab, confound_data, outcome_data, confound_names=[],
         A generator which yields dictionaries where variable names are mapped
             to tensors of batched data.
     """ 
-    data_len = len(text)
-    for i, var_data in enumerate(confound_data):
-        assert len(var_data) == data_len, 'Confound %d is of length %d != %d' % (
-            i, len(var_data), data_len)
-    for i, var_data in enumerate(outcome_data):
-        assert len(var_data) == data_len, 'Outcome %d is of length %d != %d' % (
-            i, len(var_data), data_len)
 
-    # Build up information and featurizers for each variable.
-    var_info = {}
-    var_info['input'] = build_info(text, vocab=vocab, max_seq_len=max_seq_len)
-    for i, examples in enumerate(confound_data):
-        var_name = confound_names[i]if i < len(confound_names) else 'confound_%d' % i
-        var_info[var_name] = build_info(examples, control=True, vocab=set(examples), 
-            max_seq_len=max_seq_len)
-    for i, examples in enumerate(outcome_data):
-        var_name = outcome_names[i]if i < len(outcome_names) else 'outcome_%d' % i
-        var_info[var_name] = build_info(examples, max_seq_len=max_seq_len)
+    def featurize(featurizer):
+        return [featurizer(ex) for ex in examples]
 
-    # Featurize all of the data.
+    var_info = defaultdict(lambda: OrderedDict())
     featurized_data = defaultdict(list)
-    for i in range(len(text)):
-        for var_name in var_info:
-            featurized_data[var_name].append(next(var_info[var_name]['generator']))
+    for var_name, var_type in name_to_type.items():
+
+        examples = list(df[var_name])
+
+        if var_type == 'input':
+            examples = [x.split() for x in examples]
+            featurizer, _, vocab = get_info(examples, vocab, max_seq_len)
+            var_info[var_name] = {
+                'control': False, 'name': var_name, 
+                'type': var_type, 'vocab': vocab
+            }
+
+        else:
+            featurizer, varType, vocab = get_info(examples)
+            var_info[var_name] = {
+                'control': var_type == 'control', 
+                'name': var_name, 'type': varType, 'vocab': vocab
+            }
+
+        featurized_data[var_name] = [featurizer(ex) for ex in examples]
 
     def to_tensor(var_name):
         dtype = torch.float
-        if var_name == 'input' or var_info[var_name]['type'] == 'categorical':
+        if var_info[var_name]['type'] in {'categorical', 'input'}:
             dtype = torch.long
         return torch.tensor(featurized_data[var_name], dtype=dtype)
 
@@ -398,24 +393,23 @@ def get_iterator(text, vocab, confound_data, outcome_data, confound_names=[],
     return iterator, var_info
 
 
-def score_vocab(text, vocab, confound_data, outcome_data, 
-    confound_names=[], outcome_names=[],
+def score_vocab(
+    vocab,
+    csv="", delimiter="",
+    df=None,
+    name_to_type={},
     batch_size=128, train_steps=5000, lr=0.001,  hidden_size=32, max_seq_len=128):
-    """Score words in their ability to explain outcome(s), regaurdless of confound(s).
-    
+    """
+    Score words in their ability to explain outcome(s), regaurdless of confound(s).
+
     Args:
-        text: list(list(string)). Tokenized input text.
-        vocab: list(string). The vocabulary to score. 
-        confound_data: list(list(float) --or-- list(string) ). 
-            Data for one or more confounds. These data can be categorical 
-            (in which case the elements are strings) or continuous (floats).
-        outcome_data: list(list(float) --or-- list(string) ). 
-            Data for one or more outcomes. These data can be categorical 
-            (in which case the elements are strings) or continuous (floats).
-        confound_names: list(string). An optional list of names for each of
-            the confound variables.
-        outcome_names: list(string). An optional list of names for each of
-            the outcome variables.
+        vocab: list(str). The vocabulary to use.
+        csv: str. Path to a csv of data.
+        delimiter: str. Delimiter to use when reading the csv.
+        df: pandas.df. The data we want to iterate over. The columns of
+            these data should be a superset of the keys in name_to_type.
+        name_to_type: dict. A mapping from variable names to whether they are
+            "input", "predict", or "control" variables.
         batch_size: int. Batch size for the scoring model.
         train_steps: int. How long to train the scoring model for.
         lr: float. Learning rate for the scoring model.
@@ -426,18 +420,18 @@ def score_vocab(text, vocab, confound_data, outcome_data,
         variable name => class name => [(feature name, score)] 
         Note that the lists are sorted in descending order.
     """
-    assert all([
-            x == len(text) for x in 
-            [len(x) for x in confound_data] + [len(y) for y in outcome_data]
-            ]), "Datasets must be of the same length."
+    if csv:
+        df = pd.read_csv(csv, delimiter=delimiter).dropna()
+    elif df:
+        df = df.dropna()
+    else:
+        raise Exception('Must provide a csv or df.')        
 
     assert 'UNK' not in vocab, 'ERROR: UNK is not allowed as vocab element.'
     assert 'PAD' not in vocab, 'ERROR: PAD is not allowed as vocab element.'
 
     iterator_fn, var_info = get_iterator(
-        text, vocab, 
-        confound_data, outcome_data, 
-        confound_names, outcome_names,
+        vocab, df, name_to_type,
         batch_size=batch_size,
         max_seq_len=max_seq_len)
 
@@ -454,7 +448,7 @@ def score_vocab(text, vocab, confound_data, outcome_data,
         except StopIteration:
             iterator = iterator_fn()
         confound_preds, confound_loss, final_preds, final_loss = model(batch)
-        loss = confound_loss + final_loss # TODO weighting?
+        loss = confound_loss + final_loss  # TODO(rpryzant) weighting?
         loss.backward()
         optimizer.step()
         model.zero_grad()
@@ -464,30 +458,47 @@ def score_vocab(text, vocab, confound_data, outcome_data,
     return features_scores
 
 
-def evaluate_vocab(text, vocab, confound_data, outcome_data, max_seq_len=128):
+def evaluate_vocab(vocab,
+        csv="", delimiter="",
+        df=None,
+        name_to_type={},
+        max_seq_len=128):
     """Compute the informativeness coefficient for a vocabulary.
     This coefficient summarizes the vocab's ability to explain an outcome,
         regaurdless of confounders.
 
     Args:
-        text: list(list(string)). Tokenized input text.
-        vocab: list(string). The vocabulary to score. 
-        confound_data: list(list(float) --or-- list(string) ). 
-            Data for one or more confounds.
-        outcome_data: list(float) --or-- list(string). Data for one outcome.
+        vocab: list(str). The vocabulary to use.
+        csv: str. Path to a csv of data.
+        delimiter: str. Delimiter to use when reading the csv.
+        df: pandas.df. The data we want to iterate over. The columns of
+            these data should be a superset of the keys in name_to_type.
+        name_to_type: dict. A mapping from variable names to whether they are
+            "input", "predict", or "control" variables.
         max_seq_len: int. Maximum length of text sequences.
 
     Returns:
         A float which may be used to evalutate the causal effects of the vocab.
     """
+    if csv:
+        df = pd.read_csv(csv, delimiter=delimiter).dropna()
+    elif df:
+        df = df.dropna()
+    else:
+        raise Exception('Must provide a csv or df.')        
+
+    assert 'UNK' not in vocab, 'ERROR: UNK is not allowed as vocab element.'
+    assert 'PAD' not in vocab, 'ERROR: PAD is not allowed as vocab element.'
+
     iterator_fn, var_info = get_iterator(
-        text, vocab, 
-        confound_data, [outcome_data], 
-        batch_size=len(text), 
+        vocab, df, name_to_type,
+        batch_size=len(df),
         max_seq_len=max_seq_len)
+
     data = next(iterator_fn())
 
-    X = make_bow_vector(data['input'], len(var_info['input']['vocab']))
+    input_name = next((k for k, v in name_to_type.items() if v == 'input'))
+    X = make_bow_vector(data[input_name], len(var_info[input_name]['vocab']))
     X = X.cpu().detach().numpy()
 
     C = glue_dense_vectors([
@@ -495,20 +506,27 @@ def evaluate_vocab(text, vocab, confound_data, outcome_data, max_seq_len=128):
         for name, tensor in data.items() if var_info[name]['control']])
     C = C.cpu().detach().numpy()
 
-    y_info = var_info['outcome_0']
-    Y = data['outcome_0']
-    if y_info['type'] == 'continuous':
-        Y = Y.cpu().detach().numpy()
-        model = linear_model.Ridge()
-        metric = 'neg_mean_squared_error'
-    else:
-        Y = make_bow_vector(torch.unsqueeze(Y, -1), len(y_info['vocab']))
-        Y = Y.cpu().detach().numpy()
-        model = OneVsRestClassifier(linear_model.LogisticRegression())
-        metric = 'neg_log_loss'
+    out = {}
+    outcome_names = [k for k, v in name_to_type.items() if v == 'predict']
 
-    XC = np.concatenate((X, C), axis=-1)
-    C_error = -cross_val_score(model, C, Y, scoring=metric, cv=5).mean()
-    XC_error = -cross_val_score(model, XC, Y, scoring=metric, cv=5).mean()
+    for outcome in outcome_names:
+        y_info = var_info[outcome]
+        Y = data[outcome]
+        if y_info['type'] == 'continuous':
+            Y = Y.cpu().detach().numpy()
+            model = linear_model.Ridge()
+            metric = 'neg_mean_squared_error'
+        else:
+            Y = make_bow_vector(torch.unsqueeze(Y, -1), len(y_info['vocab']))
+            Y = Y.cpu().detach().numpy()
+            model = OneVsRestClassifier(linear_model.LogisticRegression())
+            metric = 'neg_log_loss'
 
-    return C_error - XC_error
+        C_error = -cross_val_score(model, C, Y, scoring=metric, cv=5).mean()
+
+        XC = np.concatenate((X, C), axis=-1)
+        XC_error = -cross_val_score(model, XC, Y, scoring=metric, cv=5).mean()
+
+        out[outcome] = C_error - XC_error
+
+    return out

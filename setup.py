@@ -20,6 +20,7 @@ setup(
         'scipy',
         'sklearn',
         'nltk',
+        'pandas',
         'torch>=1.0.0'
     ],
     python_requires='>=3.6'
