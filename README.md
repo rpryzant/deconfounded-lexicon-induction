@@ -22,10 +22,45 @@ $ python3 test.py
 ```
 No output means the test passed.
 
-## Use
+## Example
+
+```
+import causal_selection as selection
+
+text = [
+   'hello world how is your day today'.split(),
+   'this is my 2nd string'.split()
+]
+vocab = ['hello', 'world', 'is']
+confounds = [
+    ['a', 'b'],
+    [0.1, 0.4]
+]
+outcomes =  [
+    ['o1', 'o2'],
+    [0.9, 0.1]
+]
+
+scores = selection.score_vocab(text, vocab, confounds, outcomes)
+informativeness = selection.evaluate_vocab(text, vocab, confounds, outcome[0])
+
+
+# Now scores will look something like the following:
+scores = {
+  "outcome_1": {
+    "a": [
+      ("hello", 0.5),
+      ("world", 0.1),
+      ("is", -0.3)
+    ], ...
+  }
+}
+```
+
+## Usage
 The module exposes two functions: `score_vocab` and `evaluate_vocab`.
 
-#### `score_vocab(text, vocab, confound_data, outcome_data, confound_names, outcome_names)`
+#### `score_vocab(text, vocab, confound_data, outcome_data, confound_names=[], outcome_names=[])`
 
 **Arguments**
 * **text**: list(list(str)). Input text that's **already been tokenized**
@@ -39,35 +74,6 @@ The module exposes two functions: `score_vocab` and `evaluate_vocab`.
 
 **Returns**
 A mapping: outcome variable name => outcome variable class => a list of tuples containing vocab elements and their score (i.e. how important each feature is for that level of the outcome).
-
-**Example**:
-```
-scores = score_vocab(
-  text=[
-    ["this", "is", "test" "1"],
-    ["this", "is", "test", "2"]],
-  vocab=["this", "is", "this is"],
-  confound_data=[
-    ["a", "b"],
-    [0.1, 0.6]],
-  outcome_data=[
-    ["A", "B"],
-    [0.5, 0.8]],
-  confound_names=["C1", "C2"],
-  outcome_names=["O1", "O2"]
-)
-
-# Now scores will look something like the following:
-scores = {
-  "O1": {
-    "A": [
-      ("this", -0.1),
-      ("is", 0.0),
-      ("this is", 1.0)
-    ], ...
-  }
-}
-```
 
 
 #### `evaluate_vocab(text, vocab, confound_data, outcome_data)`
