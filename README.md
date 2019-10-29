@@ -40,12 +40,11 @@ Let's say we have a file, `descriptions.csv`, which contains product description
 | nice nike shoes ! | nike    | 17    |
 
 
-We want to find the words that are most predictive of sales. Running a regression might give us `nike`, but this isn't super helpful, because brand names like "nike" are merely a function of confounding circumstance rather than a part of the writing style. 
-
-We can obtain a dictionary mapping individual words to their importance with `score_vocab`:
+We want to find the words that are most predictive of sales. Running a regression might give us `nike`, but this isn't super helpful, because brand names like "nike" are merely a function of confounding circumstance rather than a part of the writing style. We want the importance of each word while controlling for the influence of brand. The `score_vocab` function lets us do this:
 
 ```
-importance_scores = selection.score_vocab(
+import causal_selection
+importance_scores = causal_selection.score_vocab(
 	vocab=['buy', 'now' '!', 'nike', 'fresh'],
 	csv="descriptions.csv"
 	name_to_type={
@@ -60,7 +59,8 @@ importance_scores = selection.score_vocab(
 If we want to evaluate the overal ability of our vocabulary's ability to make causal inferences about sales, we can use . `evaluate_vocab`:
 
 ```
-informativeness = selection.score_vocab(
+import causal_selection
+informativeness = causal_selection.score_vocab(
 	vocab=['buy', 'now' '!', 'nike', 'fresh'],
 	csv="descriptions.csv"
 	name_to_type={
