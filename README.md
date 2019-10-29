@@ -35,12 +35,12 @@ Let's say we have a file, `descriptions.csv`, which contains product description
 
 | Description   | Brand   | Sales |
 |---------------|---------|-------|
-| buy now !     | addidas | 15    |
-| nike shoes !  | nike    | 35    |
-| fresh shoes ! | nike    | 32    |
+| buy shoes !     | addidas | 15    |
+| fresh nike shoes !  | nike    | 35    |
+| nice nike shoes ! | nike    | 17    |
 
 
-We want to find the words that are most predictive of sales, controlling for brand in order to ignore words like "nike" which are merely a function of confounding circumstance rather than a part of the writing style. 
+We want to find the words that are most predictive of sales. Running a regression might give us `nike`, but this isn't super helpful, because brand names like "nike" are merely a function of confounding circumstance rather than a part of the writing style. 
 
 We can obtain a dictionary mapping individual words to their importance with `score_vocab`:
 
