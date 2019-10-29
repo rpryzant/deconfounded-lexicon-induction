@@ -45,7 +45,7 @@ We want to find the words that are most predictive of sales. Running a regressio
 ```
 import causal_selection
 importance_scores = causal_selection.score_vocab(
-	vocab=['buy', 'now' '!', 'nike', 'fresh'],
+	vocab=['buy', 'now' '!', 'nike', 'fresh', 'nice'],
 	csv="descriptions.csv"
 	name_to_type={
 		'Description': 'input',
@@ -61,7 +61,7 @@ If we want to evaluate the overal ability of our vocabulary's ability to make ca
 ```
 import causal_selection
 informativeness = causal_selection.score_vocab(
-	vocab=['buy', 'now' '!', 'nike', 'fresh'],
+	vocab=['buy', 'now' '!', 'nike', 'fresh', 'nice'],
 	csv="descriptions.csv"
 	name_to_type={
 		'Description': 'input',
