@@ -9,6 +9,11 @@ This package has two interfaces:
 (2) evaluate_vocab(): Measure's the strength of a vocab's causal
     effects on Y (controlling for C).
 
+TODOs
+    - loss weighting
+    - scheduling
+    - layers changeable
+
 (c) Reid Pryzant 2019 https://cs.stanford.edu/~rpryzant/
 May be used and distributed under the MIT license.
 """
@@ -29,6 +34,7 @@ from torch.utils.data import TensorDataset, DataLoader, RandomSampler, Sequentia
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.autograd import Function
 
 import sklearn
 from sklearn import datasets, linear_model
@@ -41,23 +47,9 @@ warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 
-class DirectedResidualization(nn.Module):
+class VocabScoringModel(nn.Module):
     """
-    This is an implementation of the Deep Residualization model from 
-    "Interpretable Neural Architectures for Attributing an Ad's Performance 
-        to its Writing Style"
-        https://nlp.stanford.edu/pubs/pryzant2018emnlp.pdf
-
-    and
-
-    "Deconfounded Lexicon Induction for Interpretable Social Science"
-        https://nlp.stanford.edu/pubs/pryzant2018lexicon.pdf
-
-    The model takes text T, confound(s) C, and outcome(s) Y.
-    It uses C to predict Y, then concatenates those predictions (Yhat) 
-        to an encoding of the text to predict Y a second time (Yhat').
-    We then trace paths through the parameters of the model to 
-        determing text feature importance.
+    Base class for scoring models.
     """
     def __init__(self, var_info, use_counts, hidden_size):
         """Initialize a DirectedResidualization model.
@@ -69,7 +61,7 @@ class DirectedResidualization(nn.Module):
                 representations (false = binary indicators).
             hidden_size: int. Size of hidden vectors.
         """
-        super(DirectedResidualization, self).__init__()
+        super(VocabScoringModel, self).__init__()
 
         # Everything needs to be in order so that we know what variable 
         # each parameter corresponds too.
@@ -85,24 +77,6 @@ class DirectedResidualization(nn.Module):
             k: v for k, v in var_info.items() if not v['control'] and v['type'] != 'input'
         }
 
-        # Text => T
-        self.W_in = nn.Linear(
-            len(self.input_info['vocab']), self.hidden_size, bias=False)
-
-        # C => y_hat
-        self.confound_predictors, self.confound_losses = self.build_predictors(
-            sum([len(info['vocab']) for info in self.confound_info.values()]),
-            self.outcome_info,
-            self.hidden_size,
-            num_layers=2)
-
-        # [T, y_hat] => y_hat_final
-        self.final_predictors, self.final_losses = self.build_predictors(
-            self.hidden_size + sum(
-                [len(info['vocab']) for info in self.outcome_info.values()]),
-            self.outcome_info,
-            self.hidden_size,
-            num_layers=1)
 
     def build_predictors(self, input_size, output_info, hidden_size, num_layers):
         """ Builds multiple prediction heads based on output_info.
@@ -138,55 +112,17 @@ class DirectedResidualization(nn.Module):
 
         return nn.ModuleDict(out_preds), nn.ModuleDict(out_losses)
 
-    def forward(self, batch):
-        """ Forward pass.
-
-        Args:
-            batch: dict. {variable name => tensor}
-                        - text inputs: torch.LongTensor [batch, max sequence length]
-                        - Categorical variables: torch.LongTensor [batch]
-                        - Continuous variables: torch.FloatTensor [batch]
-        Returns:
-            - Initial predictions and loss from the confounds only.
-            - Final predictions and loss from the confounds + text.
-        """
-        # text => T
-        text_bow = make_bow_vector(
-            batch[self.input_info['name']], 
-            len(self.input_info['vocab']), 
-            self.use_counts)
-        text_encoded = self.W_in(text_bow)
-
-        # C => y_hat
-        confound_input = glue_dense_vectors([
-            (tensor, self.confound_info[name])
-            for name, tensor in batch.items() if name in self.confound_info])
-        confound_preds, confound_loss = self.predict(
-            confound_input, batch, self.confound_predictors, 
-            self.confound_losses, self.outcome_info)
-
-        # [T, C] => y_hat_final
-        final_input = torch.cat(
-            [text_encoded] + \
-            [confound_preds[n] for n in self.ordered_names if n in self.outcome_info],
-            axis=-1)
-        final_preds, final_loss = self.predict(
-            final_input, batch, self.final_predictors, 
-            self.final_losses, self.outcome_info)
-
-        return confound_preds, confound_loss, final_preds, final_loss
-
-    def predict(self, input_vec, batch, predictors, loss_fns, target_info):
+    def predict(self, input_vec, target_info, predictors, criterions, data):
         """ Use a vector to predict each of the outcomes.
 
         Args:
             input_vec: torch.FloatTensor [batch, features]. Inputs to the 
                 prediction heads.
-            batch: dict. The raw inputs mapping variable name => data.
+            target_into: dict. Information about the target variables.
             predictors: nn.ModuleDict. A mapping of variable names to their 
                 prediction heads.
-            loss_fns: nn.ModuleDict. A mapping of variable names to their criterions.
-            target_into: dict. Information about the target variables.
+            criterions: nn.ModuleDict. A mapping of variable names to their criterions.
+            data: dict. The raw inputs mapping variable name => data.
 
         Returns:
             Predictions on each of the targets and cumulative loss for all targets.
@@ -198,7 +134,7 @@ class DirectedResidualization(nn.Module):
             predictions[name] = pred
             if info['type'] == 'continuous':
                 pred = torch.squeeze(pred, -1)
-            loss += loss_fns[name](pred, batch[name])
+            loss += criterions[name](pred, data[name])
         return predictions, loss
 
     def interpret(self):
@@ -231,8 +167,225 @@ class DirectedResidualization(nn.Module):
             for b in out[a]:
                 out[a][b].sort(key=lambda x: x[1], reverse=True)
 
-
         return out
+
+
+class DirectedResidualization(VocabScoringModel):
+    """
+    This is an implementation of the Deep Residualization model from 
+    "Interpretable Neural Architectures for Attributing an Ad's Performance 
+        to its Writing Style"
+        https://nlp.stanford.edu/pubs/pryzant2018emnlp.pdf
+
+    and
+
+    "Deconfounded Lexicon Induction for Interpretable Social Science"
+        https://nlp.stanford.edu/pubs/pryzant2018lexicon.pdf
+
+    The model takes text T, confound(s) C, and outcome(s) Y.
+    It uses C to predict Y, then concatenates those predictions (Yhat) 
+        to an encoding of the text to predict Y a second time (Yhat').
+    We then trace paths through the parameters of the model to 
+        determing text feature importance.
+    """
+    def __init__(self, var_info, use_counts, hidden_size):
+        """Initialize a DirectedResidualization model.
+
+        Args:
+            var_info: dict. A mapping between variable names and info about 
+                that variable.
+            use_counts: bool. Whether to use counts of features in sparse
+                representations (false = binary indicators).
+            hidden_size: int. Size of hidden vectors.
+        """
+        super(DirectedResidualization, self).__init__(
+            var_info, use_counts, hidden_size)
+
+        # Text => T
+        self.W_in = nn.Linear(
+            len(self.input_info['vocab']), self.hidden_size, bias=False)
+
+        # C => y_hat
+        c_vec_size = sum([len(info['vocab']) for info in self.confound_info.values()])
+        self.confound_predictors, self.confound_criterions = self.build_predictors(
+            input_size=c_vec_size,
+            output_info=self.outcome_info,
+            hidden_size=self.hidden_size,
+            num_layers=2)
+
+        # [T, y_hat] => y_hat_final
+        t_yhat_size = self.hidden_size + \
+            sum([len(info['vocab']) for info in self.outcome_info.values()])
+        self.final_predictors, self.final_criterions = self.build_predictors(
+            input_size=t_yhat_size,
+            output_info=self.outcome_info,
+            hidden_size=self.hidden_size,
+            num_layers=1)
+
+    def forward(self, batch):
+        """ Forward pass.
+
+        Args:
+            batch: dict. {variable name => tensor}
+                        - text inputs: torch.LongTensor [batch, max sequence length]
+                        - Categorical variables: torch.LongTensor [batch]
+                        - Continuous variables: torch.FloatTensor [batch]
+        Returns:
+            - Initial predictions and loss from the confounds only.
+            - Final predictions and loss from the confounds + text.
+        """
+        # text => T
+        text_bow = make_bow_vector(
+            batch[self.input_info['name']], 
+            len(self.input_info['vocab']), 
+            self.use_counts)
+        text_encoded = self.W_in(text_bow)
+
+        # C => y_hat
+        confound_input = glue_dense_vectors([
+            (tensor, self.confound_info[name])
+            for name, tensor in batch.items() if name in self.confound_info])
+        confound_preds, confound_loss = self.predict(
+            input_vec=confound_input, 
+            target_info=self.outcome_info,
+            predictors=self.confound_predictors, 
+            criterions=self.confound_criterions,
+            data=batch)
+
+        # [T, y_hat] => y_hat_final
+        final_input = torch.cat(
+            [text_encoded] + \
+            [confound_preds[n] for n in self.ordered_names if n in self.outcome_info],
+            axis=-1)
+        final_preds, final_loss = self.predict(
+            input_vec=final_input, 
+            target_info=self.outcome_info,
+            predictors=self.final_predictors, 
+            criterions=self.final_criterions,
+            data=batch)
+
+        return confound_preds, confound_loss, final_preds, final_loss
+
+
+class AdversarialSelector(VocabScoringModel):
+    """
+    This is an implementation of the Deep Residualization model from 
+    "Interpretable Neural Architectures for Attributing an Ad's Performance 
+        to its Writing Style"
+        https://nlp.stanford.edu/pubs/pryzant2018emnlp.pdf
+
+    and
+
+    "Deconfounded Lexicon Induction for Interpretable Social Science"
+        https://nlp.stanford.edu/pubs/pryzant2018lexicon.pdf
+
+    The model takes text T, confound(s) C, and outcome(s) Y.
+    It uses C to predict Y, then concatenates those predictions (Yhat) 
+        to an encoding of the text to predict Y a second time (Yhat').
+    We then trace paths through the parameters of the model to 
+        determing text feature importance.
+    """
+    def __init__(self, var_info, use_counts, hidden_size):
+        """Initialize a DirectedResidualization model.
+
+        Args:
+            var_info: dict. A mapping between variable names and info about 
+                that variable.
+            use_counts: bool. Whether to use counts of features in sparse
+                representations (false = binary indicators).
+            hidden_size: int. Size of hidden vectors.
+        """
+        super(AdversarialSelector, self).__init__(
+            var_info, use_counts, hidden_size)
+
+        # Text => e
+        self.W_in = nn.Linear(
+            len(self.input_info['vocab']), self.hidden_size, bias=False)
+
+        # e => C
+        self.gradrev = ReversalLayer()
+        self.confound_predictors, self.confound_criterions = self.build_predictors(
+            input_size=hidden_size,
+            output_info=self.confound_info,
+            hidden_size=self.hidden_size,
+            num_layers=1)
+
+        # e => y_hat
+        self.final_predictors, self.final_criterions = self.build_predictors(
+            input_size=hidden_size,
+            output_info=self.outcome_info,
+            hidden_size=self.hidden_size,
+            num_layers=1)
+
+    def forward(self, batch):
+        """ Forward pass.
+
+        Args:
+            batch: dict. {variable name => tensor}
+                        - text inputs: torch.LongTensor [batch, max sequence length]
+                        - Categorical variables: torch.LongTensor [batch]
+                        - Continuous variables: torch.FloatTensor [batch]
+        Returns:
+            - Initial predictions and loss from the confounds only.
+            - Final predictions and loss from the confounds + text.
+        """
+        # text => e
+        text_bow = make_bow_vector(
+            batch[self.input_info['name']], 
+            len(self.input_info['vocab']), 
+            self.use_counts)
+        text_encoded = self.W_in(text_bow)
+
+        # e => C_hat
+        text_gradrev = self.gradrev(text_encoded)
+        confound_input = glue_dense_vectors([
+            (tensor, self.confound_info[name])
+            for name, tensor in batch.items() if name in self.confound_info])
+        confound_preds, confound_loss = self.predict(
+            input_vec=text_gradrev,
+            target_info=self.confound_info,
+            predictors=self.confound_predictors,
+            criterions=self.confound_criterions,
+            data=batch)
+
+        # e => y_hat
+        final_preds, final_loss = self.predict(
+            input_vec=text_encoded,
+            target_info=self.outcome_info,
+            predictors=self.final_predictors,
+            criterions=self.final_criterions,
+            data=batch)
+
+        return confound_preds, confound_loss, final_preds, final_loss
+
+
+# From https://github.com/janfreyberg/pytorch-revgrad
+class RevGrad(Function):
+    @staticmethod
+    def forward(ctx, input_):
+        ctx.save_for_backward(input_)
+        output = input_
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):  # pragma: no cover
+        grad_input = None
+        if ctx.needs_input_grad[0]:
+            grad_input = -grad_output
+        return grad_input
+
+class ReversalLayer(nn.Module):
+    def __init__(self):
+        """
+        A gradient reversal layer.
+        This layer has no parameters, and simply reverses the gradient
+        in the backward pass.
+        """
+
+        super().__init__()
+
+    def forward(self, input_):
+        return RevGrad.apply(input_)
 
 
 def glue_dense_vectors(tensors_info):
@@ -398,23 +551,35 @@ def score_vocab(
     csv="", delimiter="",
     df=None,
     name_to_type={},
-    batch_size=128, train_steps=5000, lr=0.001,  hidden_size=32, max_seq_len=128):
+    scoring_model="residualization",
+    batch_size=128, train_steps=5000, lr=0.001,  hidden_size=32, max_seq_len=128,
+    status_bar=False):
     """
     Score words in their ability to explain outcome(s), regaurdless of confound(s).
 
     Args:
-        vocab: list(str). The vocabulary to use.
-        csv: str. Path to a csv of data.
+        vocab: list(str). The vocabulary to use. Include n-grams
+            by including space-serated multi-token elements
+            in this list. For example, "hello world" would be a bigram.
+        csv: str. Path to a csv of data. The column corresponding to 
+            your "input" variable needs to be pre-tokenized text, where
+            each token is separated by whitespace.
         delimiter: str. Delimiter to use when reading the csv.
         df: pandas.df. The data we want to iterate over. The columns of
             these data should be a superset of the keys in name_to_type.
         name_to_type: dict. A mapping from variable names to whether they are
             "input", "predict", or "control" variables.
+            You can only have one "input" variable (the text).
+            You can have 1+ "predict" and 1+ "control" variables,
+                and they can be categorical or numerical datatypes.
+        scoring_model: string. The type of model to score. One of
+            ["residualization", "adversarial"]
         batch_size: int. Batch size for the scoring model.
         train_steps: int. How long to train the scoring model for.
         lr: float. Learning rate for the scoring model.
         hidden_size: int. Dimension of scoring model vectors.
         max_seq_len: int. Maximum length of text sequences.
+        status_bar: bool. Whether to show status bars during model training.
 
     Returns:
         variable name => class name => [(feature name, score)] 
@@ -435,18 +600,27 @@ def score_vocab(
         batch_size=batch_size,
         max_seq_len=max_seq_len)
 
-    model = DirectedResidualization(
+    if scoring_model == 'residualization':
+        model_fn = DirectedResidualization
+    elif scoring_model == 'adversarial':
+        model_fn = AdversarialSelector
+    else:
+        raise Exception("Unrecognized scoring_model: ", scoring_model)
+
+    model = model_fn(
         var_info=var_info,
         use_counts=False,
         hidden_size=hidden_size)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
     iterator = iterator_fn()
-    for i in tqdm(range(train_steps)):
+    stepper = tqdm(range(train_steps)) if status_bar else range(train_steps)
+    for i in stepper:
         try:
             batch = next(iterator)
         except StopIteration:
             iterator = iterator_fn()
+
         confound_preds, confound_loss, final_preds, final_loss = model(batch)
         loss = confound_loss + final_loss  # TODO(rpryzant) weighting?
         loss.backward()
@@ -468,14 +642,22 @@ def evaluate_vocab(vocab,
         regaurdless of confounders.
 
     Args:
-        vocab: list(str). The vocabulary to use.
-        csv: str. Path to a csv of data.
+        vocab: list(str). The vocabulary to use. Include n-grams
+            by including space-serated multi-token elements
+            in this list. For example, "hello world" would be a bigram.
+        csv: str. Path to a csv of data. The column corresponding to 
+            your "input" variable needs to be pre-tokenized text, where
+            each token is separated by whitespace.
         delimiter: str. Delimiter to use when reading the csv.
         df: pandas.df. The data we want to iterate over. The columns of
             these data should be a superset of the keys in name_to_type.
         name_to_type: dict. A mapping from variable names to whether they are
             "input", "predict", or "control" variables.
+            You can only have one "input" variable (the text).
+            You can have 1+ "predict" and 1+ "control" variables,
+                and they can be categorical or numerical datatypes.
         max_seq_len: int. Maximum length of text sequences.
+        
 
     Returns:
         A float which may be used to evalutate the causal effects of the vocab.

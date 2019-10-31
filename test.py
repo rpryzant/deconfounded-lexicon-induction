@@ -25,20 +25,30 @@ print('Scoring vocab...')
 
 vocab = build_vocab(text)
 
+n2t = {
+		'consumer-complaint': 'input',
+		'dummy-continuous-1': 'control',
+		'timely-response': 'control',
+		'product-in-question': 'predict',
+}	
+
+# Run the residualization model through its paces...
 scores = selection.score_vocab(
 	vocab=vocab,
 	csv="testdata/cfpb.1k.tsv", delimiter='\t',
-	name_to_type={
-		'consumer-complaint': 'input',
-		'issue-in-question': 'control',
-		'state-of-origin': 'control',
-		'dummy-continuous-1': 'control',
-		'timely-response': 'predict',
-		'dummy-continuous-2': 'predict'
-	},
+	name_to_type=n2t,
+	scoring_model='residualization',
  	batch_size=2,
  	train_steps=500)
 
+# And then the adversarial one...
+scores = selection.score_vocab(
+	vocab=vocab,
+	csv="testdata/cfpb.1k.tsv", delimiter='\t',
+	name_to_type=n2t,
+	scoring_model='adversarial',
+ 	batch_size=2,
+ 	train_steps=500)
 
 print('Evaluating vocab...')
 # Now evaluate 2 vocabs, and ensure that the larger
@@ -46,21 +56,11 @@ print('Evaluating vocab...')
 full_scores = selection.evaluate_vocab(
 	vocab=vocab,
 	csv="testdata/cfpb.1k.tsv", delimiter='\t',
-	name_to_type={
-		'consumer-complaint': 'input',
-		'dummy-continuous-1': 'control',
-		'timely-response': 'control',
-		'product-in-question': 'predict',
-	})
+	name_to_type=n2t)
 partial_scores = selection.evaluate_vocab(
 	vocab=[],
 	csv="testdata/cfpb.1k.tsv", delimiter='\t',
-	name_to_type={
-		'consumer-complaint': 'input',
-		'dummy-continuous-1': 'control',
-		'timely-response': 'control',
-		'product-in-question': 'predict',
-	})
+	name_to_type=n2t)
 
 assert full_scores['product-in-question'] > partial_scores['product-in-question']
 
@@ -68,12 +68,7 @@ assert full_scores['product-in-question'] > partial_scores['product-in-question'
 partial_scores = selection.evaluate_vocab(
 	vocab=[],
 	csv="testdata/cfpb.1k.tsv", delimiter='\t',
-	name_to_type={
-		'consumer-complaint': 'input',
-		'dummy-continuous-1': 'control',
-		'timely-response': 'control',
-		'product-in-question': 'predict',
-	})
+	name_to_type=n2t)
 
 
 print('Tests passed!')
