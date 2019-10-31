@@ -92,7 +92,7 @@ informativeness = causal_selection.score_vocab(
 
 
 **Returns**
-A mapping: outcome variable name => outcome variable class => a list of tuples containing vocab elements and their score (i.e. how important each feature is for that level of the outcome).
+* A mapping: outcome variable name => outcome variable class => a list of tuples containing vocab elements and their score (i.e. how important each feature is for that level of the outcome).
 
 
 #### `score_vocab(vocab, csv="", delimiter="", df=None, name_to_type={})`
@@ -101,7 +101,7 @@ A mapping: outcome variable name => outcome variable class => a list of tuples c
 These arguments are all the same as `score_vocab()`. 
 
 **Returns**
-The _informativeness coefficient_ of the vocab, which measures the strength of the text's causal effects that can be attributed to the vocab. 
+* The _informativeness coefficient_ of the vocab, which measures the strength of the text's causal effects that can be attributed to the vocab. 
 
 ## Tips
 
