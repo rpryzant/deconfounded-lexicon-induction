@@ -77,7 +77,7 @@ informativeness = causal_selection.score_vocab(
 ### API
 
 
-#### `score_vocab(vocab, csv="", delimiter="", df=None, name_to_type={}, scoring_model="residualization", batch_size=128, train_steps=5000)`
+#### score_vocab(vocab, csv="", delimiter="", df=None, name_to_type={}, scoring_model="residualization", batch_size=128, train_steps=5000)
 
 **Arguments**
 * **vocab**: list(str). The vocabulary to use.  You can include **ngrams** by combining words with a space, e.g. `['a', 'b', 'a b']`.
@@ -95,10 +95,10 @@ informativeness = causal_selection.score_vocab(
 * A mapping: outcome variable name => outcome variable class => a list of tuples containing vocab elements and their score (i.e. how important each feature is for that level of the outcome).
 
 
-#### `score_vocab(vocab, csv="", delimiter="", df=None, name_to_type={})`
+#### score_vocab(vocab, csv="", delimiter="", df=None, name_to_type={})
 
 **Arguments**
-These arguments are all the same as `score_vocab()`. 
+* These arguments are all the same as `score_vocab()`. 
 
 **Returns**
 * The _informativeness coefficient_ of the vocab, which measures the strength of the text's causal effects that can be attributed to the vocab. 
