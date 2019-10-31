@@ -77,7 +77,7 @@ informativeness = causal_selection.score_vocab(
 ### API
 
 
-#### `score_vocab(vocab, csv="", delimiter="", df=None, name_to_type={}, scoring_model="residualization")`
+#### `score_vocab(vocab, csv="", delimiter="", df=None, name_to_type={}, scoring_model="residualization", batch_size=128, train_steps=5000)`
 
 **Arguments**
 * **vocab**: list(str). The vocabulary to use.  You can include **ngrams** by combining words with a space, e.g. `['a', 'b', 'a b']`.
@@ -87,6 +87,9 @@ informativeness = causal_selection.score_vocab(
 * **df**: pandas.df. The data we want to analyze over.
 * **name_to_type**: dict. A mapping from column names to whether they are "input", "predict", or "control" variables. You can only have one "input" variable (the text).  You can have 1+ "predict" and 1+ "control" variables, and they can be categorical  (e.g. `['a', 'b', 'a']`) or continuous (e.g. `[1.0, 0.9, 0.1]`).
 * **scoring_model**: string. The type of scoring engine to use. One of ["residualization", "adversarial"].
+* **batch_size**: int. Batch size for the scoring model.
+* **train_step**: int. How long to train the scoring model for.
+
 
 **Returns**
 A mapping: outcome variable name => outcome variable class => a list of tuples containing vocab elements and their score (i.e. how important each feature is for that level of the outcome).
