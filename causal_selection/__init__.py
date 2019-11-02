@@ -21,7 +21,7 @@ May be used and distributed under the MIT license.
 # https://packaging.python.org/tutorials/packaging-projects/
 
 __all__ = ['score_vocab', 'evaluate_vocab']
-__version__ = 1.13
+__version__ = 1.14
 
 from collections import defaultdict, OrderedDict
 from tqdm import tqdm
@@ -657,7 +657,7 @@ def evaluate_vocab(vocab,
             You can have 1+ "predict" and 1+ "control" variables,
                 and they can be categorical or numerical datatypes.
         max_seq_len: int. Maximum length of text sequences.
-        
+
 
     Returns:
         A float which may be used to evalutate the causal effects of the vocab.
