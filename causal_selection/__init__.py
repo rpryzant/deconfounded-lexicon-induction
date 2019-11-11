@@ -9,19 +9,17 @@ This package has two interfaces:
 (2) evaluate_vocab(): Measure's the strength of a vocab's causal
     effects on Y (controlling for C).
 
-TODOs
-    - loss weighting
-    - scheduling
-    - layers changeable
-
 (c) Reid Pryzant 2019 https://cs.stanford.edu/~rpryzant/
 May be used and distributed under the MIT license.
 """
-# EX https://github.com/paulgb/simplediff/tree/master/python
+# TODOs
+#    - loss weighting
+#    - scheduling
+#    - layers changeable
 # https://packaging.python.org/tutorials/packaging-projects/
 
 __all__ = ['score_vocab', 'evaluate_vocab']
-__version__ = 1.14
+__version__ = 1.15
 
 from collections import defaultdict, OrderedDict
 from tqdm import tqdm
