@@ -16,10 +16,10 @@ This package is based on the following papers:
 ## Install
 
 ```
-$ pip3 install causal-selection==1.14
+$ pip3 install causal-selection
 ```
 
-More info here: https://test.pypi.org/project/causal-selection/1.14/
+More info here: https://pypi.org/project/causal-selection/1.15/
 
 ## Test
 
