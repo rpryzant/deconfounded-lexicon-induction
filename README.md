@@ -62,7 +62,7 @@ If we want to evaluate the overal ability of our vocabulary's ability to make ca
 
 ```
 import causal_selection
-informativeness = causal_selection.score_vocab(
+informativeness = causal_selection.evaluate_vocab(
 	vocab=['buy', 'now' '!', 'nike', 'fresh', 'nice'],
 	csv="descriptions.csv"
 	name_to_type={
@@ -78,7 +78,7 @@ informativeness = causal_selection.score_vocab(
 
 ## Interface
 
-### score_vocab(vocab, csv="", delimiter="", df=None, name_to_type={}, scoring_model="residualization", batch_size=128, train_steps=5000)
+`score_vocab(vocab, csv="", delimiter="", df=None, name_to_type={}, scoring_model="residualization", batch_size=128, train_steps=5000)`
 
 **Arguments**
 * **vocab**: list(str). The vocabulary to use.  You can include **ngrams** by combining words with a space, e.g. `['a', 'b', 'a b']`.
@@ -96,7 +96,7 @@ informativeness = causal_selection.score_vocab(
 * A mapping: outcome variable name => outcome variable class => a list of tuples containing vocab elements and their score (i.e. how important each feature is for that level of the outcome).
 
 
-### score_vocab(vocab, csv="", delimiter="", df=None, name_to_type={})
+`evaluate_vocab(vocab, csv="", delimiter="", df=None, name_to_type={})`
 
 **Arguments**
 * These arguments are all the same as `score_vocab()`. 
