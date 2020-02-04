@@ -85,7 +85,7 @@ informativeness = causal_selection.evaluate_vocab(
 * **csv**: str. Path to a csv of data. The column corresponding to your "input" variable needs to already be tokenized, and 
       each token is separated by whitespace.
 * **delimiter**: str. Delimiter to use when reading the csv.
-* **df**: pandas.df. The data we want to analyze over.
+* **df**: pandas.df. The data we want to analyze over (an alternative to the csv argument).
 * **name_to_type**: dict. A mapping from column names to whether they are "input", "predict", or "control" variables. You can only have one "input" variable (the text).  You can have 1+ "predict" and 1+ "control" variables, and they can be categorical  (e.g. `['a', 'b', 'a']`) or continuous (e.g. `[1.0, 0.9, 0.1]`).
 * **scoring_model**: string. The type of scoring engine to use. One of ["residualization", "adversarial"].
 * **batch_size**: int. Batch size for the scoring model.
