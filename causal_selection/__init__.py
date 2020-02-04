@@ -461,10 +461,13 @@ def get_info(examples, vocab=None, max_seq_len=256):
             return padded_ids
 
     # Continuous
-    elif isinstance(examples[0], float):
+    elif isinstance(examples[0], float) or isinstance(examples[0], int):
         example_type = 'continuous'
         vocab = ['N/A']
-        featurizer = lambda ex: ex
+        if isinstance(examples[0], int):
+            featurizer = lambda ex: float(ex)
+        else:
+            featurizer = lambda ex: ex
 
     # Categorical
     elif isinstance(examples[0], str):
