@@ -588,7 +588,7 @@ def score_vocab(
     """
     if csv:
         df = pd.read_csv(csv, delimiter=delimiter).dropna()
-    elif df:
+    elif df is not None:
         df = df.dropna()
     else:
         raise Exception('Must provide a csv or df.')        
