@@ -49,7 +49,7 @@ class VocabScoringModel(nn.Module):
     """
     Base class for scoring models.
     """
-    def __init__(self, var_info, use_counts, hidden_size):
+    def __init__(self, var_info, use_counts, hidden_size, use_gpu):
         """Initialize a DirectedResidualization model.
 
         Args:
@@ -58,8 +58,11 @@ class VocabScoringModel(nn.Module):
             use_counts: bool. Whether to use counts of features in sparse
                 representations (false = binary indicators).
             hidden_size: int. Size of hidden vectors.
+            use_gpu: bool. Whether to use gpu.
         """
         super(VocabScoringModel, self).__init__()
+
+        self.use_gpu = use_gpu
 
         # Everything needs to be in order so that we know what variable 
         # each parameter corresponds too.
@@ -186,7 +189,7 @@ class DirectedResidualization(VocabScoringModel):
     We then trace paths through the parameters of the model to 
         determing text feature importance.
     """
-    def __init__(self, var_info, use_counts, hidden_size):
+    def __init__(self, var_info, use_counts, hidden_size, use_gpu):
         """Initialize a DirectedResidualization model.
 
         Args:
@@ -197,7 +200,7 @@ class DirectedResidualization(VocabScoringModel):
             hidden_size: int. Size of hidden vectors.
         """
         super(DirectedResidualization, self).__init__(
-            var_info, use_counts, hidden_size)
+            var_info, use_counts, hidden_size, use_gpu)
 
         # Text => T
         self.W_in = nn.Linear(
@@ -236,13 +239,14 @@ class DirectedResidualization(VocabScoringModel):
         text_bow = make_bow_vector(
             batch[self.input_info['name']], 
             len(self.input_info['vocab']), 
-            self.use_counts)
+            self.use_counts, self.use_gpu)
         text_encoded = self.W_in(text_bow)
 
         # C => y_hat
         confound_input = glue_dense_vectors([
             (tensor, self.confound_info[name])
-            for name, tensor in batch.items() if name in self.confound_info])
+            for name, tensor in batch.items() if name in self.confound_info],
+            self.use_gpu)
         confound_preds, confound_loss = self.predict(
             input_vec=confound_input, 
             target_info=self.outcome_info,
@@ -283,7 +287,7 @@ class AdversarialSelector(VocabScoringModel):
     We then trace paths through the parameters of the model to 
         determing text feature importance.
     """
-    def __init__(self, var_info, use_counts, hidden_size):
+    def __init__(self, var_info, use_counts, hidden_size, use_gpu):
         """Initialize a DirectedResidualization model.
 
         Args:
@@ -294,7 +298,7 @@ class AdversarialSelector(VocabScoringModel):
             hidden_size: int. Size of hidden vectors.
         """
         super(AdversarialSelector, self).__init__(
-            var_info, use_counts, hidden_size)
+            var_info, use_counts, hidden_size, use_gpu)
 
         # Text => e
         self.W_in = nn.Linear(
@@ -331,14 +335,15 @@ class AdversarialSelector(VocabScoringModel):
         text_bow = make_bow_vector(
             batch[self.input_info['name']], 
             len(self.input_info['vocab']), 
-            self.use_counts)
+            self.use_counts, self.use_gpu)
         text_encoded = self.W_in(text_bow)
 
         # e => C_hat
         text_gradrev = self.gradrev(text_encoded)
         confound_input = glue_dense_vectors([
             (tensor, self.confound_info[name])
-            for name, tensor in batch.items() if name in self.confound_info])
+            for name, tensor in batch.items() if name in self.confound_info], 
+            self.use_gpu)
         confound_preds, confound_loss = self.predict(
             input_vec=text_gradrev,
             target_info=self.confound_info,
@@ -386,11 +391,12 @@ class ReversalLayer(nn.Module):
         return RevGrad.apply(input_)
 
 
-def glue_dense_vectors(tensors_info):
+def glue_dense_vectors(tensors_info, use_gpu=False):
     """ Glue together a bunch of (possibly categorical/dense) vectors.
 
     Args:
         tensors_info: [(tensor, information about the variable), ...]
+        use_gpu: bool. Whether to use gpu.
     Returns:
         torch.FloatTensor [vatch, feature size] -- all of the vectorized
             variables concatted together.
@@ -399,7 +405,7 @@ def glue_dense_vectors(tensors_info):
     for tensor, info in tensors_info:
         if info['type'] == 'categorical':
             vec = make_bow_vector(
-                torch.unsqueeze(tensor, -1), len(info['vocab']))
+                torch.unsqueeze(tensor, -1), len(info['vocab']), use_gpu=use_gpu)
             out.append(vec)
         else:
             out.append(torch.unsqueeze(tensor, -1))
@@ -407,7 +413,7 @@ def glue_dense_vectors(tensors_info):
     return torch.cat(out, 1)
 
 
-def make_bow_vector(ids, vocab_size, use_counts=False):
+def make_bow_vector(ids, vocab_size, use_counts=False, use_gpu=False):
     """ Make a sparse BOW vector from a tensor of dense ids.
 
     Args:
@@ -415,12 +421,17 @@ def make_bow_vector(ids, vocab_size, use_counts=False):
         vocab_size: vocab size for this tensor.
         use_counts: if true, the outgoing BOW vector will contain
             feature counts. If false, will contain binary indicators.
-
+        use_gpu: bool. Whether to use gpu
     Returns:
         The sparse bag-of-words representation of ids.
     """
     vec = torch.zeros(ids.shape[0], vocab_size)
-    vec.scatter_add_(1, ids, torch.ones_like(ids, dtype=torch.float))
+    ones = torch.ones_like(ids, dtype=torch.float)
+    if use_gpu:
+        vec = vec.cuda()
+        ones = ones.cuda()
+        ids = ids.cuda()
+    vec.scatter_add_(1, ids, ones)
     vec[:, 1] = 0.0  # zero out pad
     if not use_counts:
         vec = (vec != 0).float()
@@ -613,7 +624,8 @@ def score_vocab(
     model = model_fn(
         var_info=var_info,
         use_counts=False,
-        hidden_size=hidden_size)
+        hidden_size=hidden_size,
+        use_gpu=use_gpu)
     if use_gpu:
         model = model.cuda()
 
@@ -627,7 +639,7 @@ def score_vocab(
             iterator = iterator_fn()
 
         if use_gpu:
-            batch = {k, v.cuda() for k, v in batch.items()}
+            batch = {k: v.cuda() for k, v in batch.items()}
             
         confound_preds, confound_loss, final_preds, final_loss = model(batch)
         loss = confound_loss + final_loss  # TODO(rpryzant) weighting?
