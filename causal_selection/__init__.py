@@ -19,7 +19,7 @@ May be used and distributed under the MIT license.
 # https://packaging.python.org/tutorials/packaging-projects/
 
 __all__ = ['score_vocab', 'evaluate_vocab']
-__version__ = 1.15
+__version__ = 1.16
 
 from collections import defaultdict, OrderedDict
 from tqdm import tqdm
