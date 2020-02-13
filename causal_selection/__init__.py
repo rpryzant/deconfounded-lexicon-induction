@@ -554,7 +554,8 @@ def score_vocab(
     name_to_type={},
     scoring_model="residualization",
     batch_size=128, train_steps=5000, lr=0.001,  hidden_size=32, max_seq_len=128,
-    status_bar=False):
+    status_bar=False,
+    use_gpu=False):
     """
     Score words in their ability to explain outcome(s), regaurdless of confound(s).
 
@@ -581,6 +582,7 @@ def score_vocab(
         hidden_size: int. Dimension of scoring model vectors.
         max_seq_len: int. Maximum length of text sequences.
         status_bar: bool. Whether to show status bars during model training.
+        use_gpu: bool. Whether to use a gpu for model training.
 
     Returns:
         variable name => class name => [(feature name, score)] 
@@ -612,6 +614,8 @@ def score_vocab(
         var_info=var_info,
         use_counts=False,
         hidden_size=hidden_size)
+    if use_gpu:
+        model = model.cuda()
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
     iterator = iterator_fn()
@@ -622,8 +626,12 @@ def score_vocab(
         except StopIteration:
             iterator = iterator_fn()
 
+        if use_gpu:
+            batch = {k, v.cuda() for k, v in batch.items()}
+            
         confound_preds, confound_loss, final_preds, final_loss = model(batch)
         loss = confound_loss + final_loss  # TODO(rpryzant) weighting?
+
         loss.backward()
         optimizer.step()
         model.zero_grad()
