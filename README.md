@@ -19,7 +19,7 @@ This package is based on the following papers:
 $ pip3 install causal-selection
 ```
 
-More info here: https://pypi.org/project/causal-selection/1.15/
+More info here: https://pypi.org/project/causal-selection/
 
 ## Test
 
