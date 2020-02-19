@@ -6,13 +6,6 @@ This package lets you attribute outcomes to text while controlling for confoundi
 
 (2) **evaluate_vocab**. Given text, vocab, outcomes, and confounds, this algorithm evaluates the overall ability of the entire vocab in explaining the outcome, _controlling for counfounds_.
 
-This package is based on the following papers:
-
-1. _Deconfounded Lexicon Induction for Interpretable Social Science_ [(Pryzant, et al. 2019)](https://nlp.stanford.edu/pubs/pryzant2018lexicon.pdf)
-2. _Interpretable Neural Architectures for Attributing an Ad’s Performance to its Writing Style_ [(Pryzant, et al. 2019)](https://nlp.stanford.edu/pubs/pryzant2018emnlp.pdf)
-
-
-
 ## Install
 
 ```
@@ -164,3 +157,16 @@ Note that the arguments to `evaluate_vocab` are largely the same as `score_vocab
 
 * For a continuous variable X, give the algorithm _log(X)_ instead of just X.
 * The algorithm is sensitive to hyperparameter settings (number of training steps, hidden dimension, etc). Try several different settings to get the best scores possible.
+
+### Citation
+
+If you use this package, please include hte following citations:
+
+This package is based on the following papers:
+
+1. _Deconfounded Lexicon Induction for Interpretable Social Science_ [(Pryzant, et al. 2019)](https://nlp.stanford.edu/pubs/pryzant2018lexicon.pdf)
+2. _Interpretable Neural Architectures for Attributing an Ad’s Performance to its Writing Style_ [(Pryzant, et al. 2019)](https://nlp.stanford.edu/pubs/pryzant2018emnlp.pdf)
+
+
+
+
