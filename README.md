@@ -30,7 +30,7 @@ $ python3 test.py
 ```
 No output means the test passed. This file also contains example usage.
 
-## Example
+## Examples
 
 Let's say we have a file, `descriptions.csv`, which contains product descriptions for Nike and Addidas shoes:
 
