@@ -1,6 +1,6 @@
-# Causal selection 
+# Causal attribution 
 
-This package has two interfaces:
+This package lets you attribute outcomes to text while controlling for confounding factors. It has has two methods:
 
 (1) **score_vocab**. Given text, vocab, outcomes, and confounds, the algorithm scores each word according to how well it explains the outcome, _controlling for confounds_. 
 
@@ -16,10 +16,10 @@ This package is based on the following papers:
 ## Install
 
 ```
-$ pip3 install causal-selection
+$ pip3 install causal-attribution
 ```
 
-More info here: https://pypi.org/project/causal-selection/
+More info here: https://pypi.org/project/causal-attribution/
 
 ## Test
 
