@@ -1,21 +1,21 @@
 from setuptools import setup
-import causal_selection
+import causal_attribution
 
 setup(
-    name='causal_selection',
-    version=causal_selection.__version__,
-    description='Select and score features for causal inferences',
-    long_description=causal_selection.__doc__,
+    name='causal_attribution',
+    version=causal_attribution.__version__,
+    description='Select and score features for causal inferences.',
+    long_description=causal_attribution.__doc__,
     author='Reid Pryzant',
     author_email='rpryzant@stanford.edu',
-    url='https://github.com/rpryzant/causal_selection',
+    url='https://github.com/rpryzant/causal_attribution',
     keywords=['feature selection'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    packages=['causal_selection'],
+    packages=['causal_attribution'],
     install_requires=[
         'scipy',
         'sklearn',

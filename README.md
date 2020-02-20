@@ -8,9 +8,9 @@ For more information see the blog post http://ai.stanford.edu/blog/text-causal-i
 
 It has has two methods:
 
-(1) **score_vocab**. Given text, vocab, outcomes, and confounds, the algorithm scores each word according to how well it explains the outcome, _controlling for confounds_. 
+(1) **score_vocab**. Given text (T), vocab (V), outcome(s) Y, and confound(s) (C), this method will score each element of the vocab according to how well it explains each Y, controlling for all of the C's.
 
-(2) **evaluate_vocab**. Given text, vocab, outcomes, and confounds, this algorithm evaluates the overall ability of the entire vocab in explaining the outcome, _controlling for counfounds_.
+(2) **evaluate_vocab**. Measure's the strength of a vocab's causal effects on outcome Y (controlling for confounds C).
 
 ## Install
 
@@ -44,8 +44,8 @@ Let's say we have a file, `descriptions.csv`, which contains product description
 We want to find the words that are most predictive of sales. Running a regression might give us `nike`, but this isn't super helpful, because brand names like "nike" are merely a function of confounding circumstance rather than a part of the writing style. We want the importance of each word while controlling for the influence of brand. The `score_vocab` function lets us do this:
 
 ```
-import causal_selection
-importance_scores = causal_selection.score_vocab(
+import causal_attribution
+importance_scores = causal_attribution.score_vocab(
 	vocab=['buy', 'now' '!', 'nike', 'fresh', 'nice'],
 	csv="descriptions.csv"
 	name_to_type={
@@ -60,8 +60,8 @@ importance_scores = causal_selection.score_vocab(
 If we want to evaluate the overal ability of our vocabulary's ability to make causal inferences about sales, we can use . `evaluate_vocab`:
 
 ```
-import causal_selection
-informativeness = causal_selection.evaluate_vocab(
+import causal_attribution
+informativeness = causal_attribution.evaluate_vocab(
 	vocab=['buy', 'now' '!', 'nike', 'fresh', 'nice'],
 	csv="descriptions.csv"
 	name_to_type={

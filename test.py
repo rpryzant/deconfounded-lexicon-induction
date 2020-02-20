@@ -1,5 +1,5 @@
 """ Tests and examples for causal_selection. """
-import causal_selection as selection
+import causal_attribution as selection
 import random
 
 import nltk
@@ -28,8 +28,8 @@ vocab = build_vocab(text)
 n2t = {
 		'consumer-complaint': 'input',
 		'dummy-continuous-1': 'control',
-		'timely-response': 'control',
-		'product-in-question': 'predict',
+		'timely-response': 'predict',
+		'product-in-question': 'control',
 }	
 
 # Run the residualization model through its paces...
@@ -54,15 +54,15 @@ print('Evaluating vocab...')
 # Now evaluate 2 vocabs, and ensure that the larger
 #  vocab is more informative.
 full_scores = selection.evaluate_vocab(
-	vocab=vocab,
+	vocab=vocab[:100],
 	csv="testdata/cfpb.1k.tsv", delimiter='\t',
 	name_to_type=n2t)
 partial_scores = selection.evaluate_vocab(
-	vocab=[],
+	vocab=[vocab[-1]],
 	csv="testdata/cfpb.1k.tsv", delimiter='\t',
 	name_to_type=n2t)
 
-assert full_scores['product-in-question'] > partial_scores['product-in-question']
+assert full_scores['timely-response'] > partial_scores['timely-response']
 
 # And just for good measure have a continuous outcome.
 partial_scores = selection.evaluate_vocab(
