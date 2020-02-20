@@ -1,6 +1,12 @@
 # Causal attribution 
 
-This package lets you attribute outcomes to text while controlling for confounding factors. It has has two methods:
+This package lets you attribute outcomes to text features while controlling for confounding factors.
+
+For example, if you want to find the words in product descriptions that are most predictive of sales, features like brand names (e.g. "nike") will have the highest score. But these are words you can't change. This package will let you _control_ for confounds like brand and find which aspects of the description's _writing style_ are most predictive of sales. 
+
+For more information see the blog post http://ai.stanford.edu/blog/text-causal-inference/
+
+It has has two methods:
 
 (1) **score_vocab**. Given text, vocab, outcomes, and confounds, the algorithm scores each word according to how well it explains the outcome, _controlling for confounds_. 
 
