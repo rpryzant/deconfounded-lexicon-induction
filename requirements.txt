@@ -1,6 +1,6 @@
 tqdm
 scipy
 pandas
-torch==1.4.0
+torch==2.2.0
 sklearn
 nltk
